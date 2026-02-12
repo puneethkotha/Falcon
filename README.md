@@ -6,7 +6,7 @@
 
 Production ML inference service focused on infrastructure and reliability engineering. This is less about ML research and more about building systems that actually work in production.
 
-## What This Is
+## About
 
 This demonstrates how to build and operate ML services at scale. The focus is infrastructure-first: circuit breakers, retry logic, graceful degradation, observability, and operational tooling.
 
