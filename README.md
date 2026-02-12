@@ -4,13 +4,13 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)](https://fastapi.tiangolo.com/)
 
-Production ML inference service built to demonstrate infrastructure and reliability engineering at scale. Think less "ML research project" and more "what you'd actually deploy at a Big Tech company."
+Production ML inference service focused on infrastructure and reliability engineering. This is less about ML research and more about building systems that actually work in production.
 
-## Why This Exists
+## What This Is
 
-I built this as a portfolio project to show I understand how production systems actually work—not just the happy path, but the messy reality of networks failing, databases going slow, and services crashing at 3am.
+This demonstrates how to build and operate ML services at scale. The focus is infrastructure-first: circuit breakers, retry logic, graceful degradation, observability, and operational tooling.
 
-The focus is infrastructure-first: circuit breakers, retry logic, graceful degradation, observability, and operational tooling. The ML model is deliberately simple (a scikit-learn text classifier) because that's not the point. The point is everything around it.
+The ML model itself is deliberately simple (scikit-learn text classifier) because the interesting engineering problems are in everything around it—deployment, reliability, monitoring, debugging, and keeping it running when dependencies fail.
 
 ## Architecture
 
@@ -476,9 +476,7 @@ MIT License - See [LICENSE](LICENSE) file.
 
 ## Author
 
-Built by Puneeth Kotha ([@puneethkotha](https://github.com/puneethkotha)) as a portfolio project.
-
-If you're interviewing me and want to discuss any design decisions, I'm happy to defend them or explain what I'd change at different scales.
+Puneeth Kotha ([@puneethkotha](https://github.com/puneethkotha))
 
 ## Notes
 
