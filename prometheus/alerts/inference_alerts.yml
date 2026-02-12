@@ -1,0 +1,146 @@
+groups:
+  - name: inference_alerts
+    interval: 30s
+    rules:
+      # High p95 latency
+      - alert: HighP95Latency
+        expr: histogram_quantile(0.95, sum(rate(inference_duration_seconds_bucket[5m])) by (le, worker_id)) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: inference
+        annotations:
+          summary: "High p95 latency on {{ $labels.worker_id }}"
+          description: "P95 latency is {{ $value }}s, above threshold of 1.0s for 5 minutes"
+
+      # Very high p95 latency
+      - alert: VeryHighP95Latency
+        expr: histogram_quantile(0.95, sum(rate(inference_duration_seconds_bucket[5m])) by (le, worker_id)) > 5.0
+        for: 2m
+        labels:
+          severity: critical
+          component: inference
+        annotations:
+          summary: "Very high p95 latency on {{ $labels.worker_id }}"
+          description: "P95 latency is {{ $value }}s, above critical threshold of 5.0s for 2 minutes"
+
+      # High error rate
+      - alert: HighErrorRate
+        expr: sum(rate(inference_requests_total{status="error"}[5m])) by (worker_id) / sum(rate(inference_requests_total[5m])) by (worker_id) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: inference
+        annotations:
+          summary: "High error rate on {{ $labels.worker_id }}"
+          description: "Error rate is {{ $value | humanizePercentage }}, above 5% threshold for 5 minutes"
+
+      # Very high error rate
+      - alert: VeryHighErrorRate
+        expr: sum(rate(inference_requests_total{status="error"}[5m])) by (worker_id) / sum(rate(inference_requests_total[5m])) by (worker_id) > 0.20
+        for: 2m
+        labels:
+          severity: critical
+          component: inference
+        annotations:
+          summary: "Very high error rate on {{ $labels.worker_id }}"
+          description: "Error rate is {{ $value | humanizePercentage }}, above 20% critical threshold for 2 minutes"
+
+      # Worker down
+      - alert: WorkerDown
+        expr: up{job="falcon-workers"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Worker {{ $labels.instance }} is down"
+          description: "Worker has been down for 1 minute"
+
+      # No requests (possible issue)
+      - alert: NoRequests
+        expr: sum(rate(inference_requests_total[5m])) == 0
+        for: 10m
+        labels:
+          severity: warning
+          component: traffic
+        annotations:
+          summary: "No inference requests received"
+          description: "No requests have been received for 10 minutes"
+
+      # Circuit breaker open
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: reliability
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.dependency }} on {{ $labels.worker_id }}"
+          description: "Circuit breaker has been open for 5 minutes (state: {{ $value }})"
+
+      # High retry rate
+      - alert: HighRetryRate
+        expr: sum(rate(retry_attempts_total[5m])) by (worker_id, operation) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: reliability
+        annotations:
+          summary: "High retry rate for {{ $labels.operation }} on {{ $labels.worker_id }}"
+          description: "Retry rate is {{ $value }} per second for 5 minutes"
+
+      # Database logs being dropped
+      - alert: DatabaseLogsDropped
+        expr: rate(dropped_logs_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database logs being dropped on {{ $labels.worker_id }}"
+          description: "Logs are being dropped at {{ $value }} per second, database may be down"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: memory_usage_bytes > 1073741824  # 1GB
+        for: 10m
+        labels:
+          severity: warning
+          component: resources
+        annotations:
+          summary: "High memory usage on {{ $labels.worker_id }}"
+          description: "Memory usage is {{ $value | humanize }}B for 10 minutes"
+
+      # Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: sum(rate(cache_hits_total[10m])) by (worker_id) / (sum(rate(cache_hits_total[10m])) by (worker_id) + sum(rate(cache_misses_total[10m])) by (worker_id)) < 0.20
+        for: 15m
+        labels:
+          severity: info
+          component: performance
+        annotations:
+          summary: "Low cache hit rate on {{ $labels.worker_id }}"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}, below 20% for 15 minutes"
+
+      # Cache errors
+      - alert: CacheErrors
+        expr: sum(rate(cache_errors_total[5m])) by (worker_id) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Cache errors on {{ $labels.worker_id }}"
+          description: "Cache error rate is {{ $value }} per second for 5 minutes"
+
+      # Database operation slow
+      - alert: DatabaseOperationSlow
+        expr: histogram_quantile(0.95, sum(rate(db_operation_duration_seconds_bucket[5m])) by (le, worker_id, operation)) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow database operations for {{ $labels.operation }} on {{ $labels.worker_id }}"
+          description: "P95 database operation time is {{ $value }}s for 10 minutes"
