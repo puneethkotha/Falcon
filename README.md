@@ -67,33 +67,28 @@ The ML model itself is deliberately simple (scikit-learn text classifier) becaus
 ### Local Setup
 
 ```bash
-# 1. Clone the repository
+# Clone and start
 git clone https://github.com/puneethkotha/Falcon.git
 cd Falcon
 
-# 2. Train the ML model
+# Train the model (or it'll auto-generate a dummy one)
 python scripts/train_model.py
 
-# 3. Start the platform
+# Start everything
 make up
-# Or: docker compose up -d
 
-# 4. Wait for services to be healthy (~30 seconds)
+# Wait ~30 seconds, then verify
 make check-health
 
-# 5. Run the demo
-make demo
+# Test it
+curl -X POST http://localhost/infer \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This product is great!"}'
+
+# Check dashboards
+# Grafana: http://localhost:3000 (default login: admin/admin)
+# Prometheus: http://localhost:9090
 ```
-
-### Access Points
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **API** | http://localhost/infer | - |
-| **Health** | http://localhost/healthz | - |
-| **Metrics** | http://localhost/metrics | - |
-| **Grafana** | http://localhost:3000 | admin / admin_change_in_prod |
-| **Prometheus** | http://localhost:9090 | - |
 
 ## API Endpoints
 
