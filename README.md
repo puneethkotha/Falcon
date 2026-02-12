@@ -4,19 +4,15 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)](https://fastapi.tiangolo.com/)
 
-A **production-grade ML inference platform** demonstrating Meta Production Engineering principles: Linux system expertise, networking, observability, reliability engineering, and capacity planning.
+Production ML inference service built to demonstrate infrastructure and reliability engineering at scale. Think less "ML research project" and more "what you'd actually deploy at a Big Tech company."
 
-## 🎯 Purpose
+## Why This Exists
 
-This project showcases Production Engineering skills through a realistic ML inference service with:
+I built this as a portfolio project to show I understand how production systems actually work—not just the happy path, but the messy reality of networks failing, databases going slow, and services crashing at 3am.
 
-- **Infrastructure-first design**: Focus on reliability, observability, and operations
-- **Production-ready patterns**: Circuit breakers, retries, graceful shutdown, health checks
-- **Comprehensive observability**: Prometheus metrics, Grafana dashboards, structured logging
-- **Failure resilience**: Automatic fallbacks, load balancing, dependency isolation
-- **Operational excellence**: Runbooks, capacity planning, load testing, failure injection
+The focus is infrastructure-first: circuit breakers, retry logic, graceful degradation, observability, and operational tooling. The ML model is deliberately simple (a scikit-learn text classifier) because that's not the point. The point is everything around it.
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -59,7 +55,7 @@ This project showcases Production Engineering skills through a realistic ML infe
 6. **Worker** logs request to database (Postgres) - non-blocking with fallback
 7. **Worker** returns response to client
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -99,7 +95,7 @@ make demo
 | **Grafana** | http://localhost:3000 | admin / admin_change_in_prod |
 | **Prometheus** | http://localhost:9090 | - |
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### POST /infer
 
@@ -156,9 +152,9 @@ Prometheus metrics endpoint.
 curl http://localhost/metrics
 ```
 
-## 🔬 Key Features
+## What's Actually Implemented
 
-### 1. **Reliability Engineering**
+### Reliability Engineering
 
 #### Circuit Breaker
 - Automatically opens when dependency fails repeatedly
@@ -187,7 +183,7 @@ curl http://localhost/metrics
 - **Postgres down**: Buffer logs in memory (1000 max), auto-flush on recovery
 - **Worker down**: Nginx routes to healthy workers
 
-### 2. **Observability**
+### Observability
 
 #### Prometheus Metrics
 
@@ -246,9 +242,9 @@ All logs are structured JSON with:
 }
 ```
 
-### 3. **Load Testing**
+### Load Testing
 
-Four comprehensive load test scenarios:
+Four k6 test scenarios because you need more than "it works on my laptop":
 
 ```bash
 # Baseline (50 VUs, 5 min)
@@ -264,9 +260,9 @@ make load-test-spike
 make load-test-soak
 ```
 
-### 4. **Failure Injection**
+### Failure Injection
 
-Test system resilience with failure scenarios:
+Scripts to break things on purpose and watch how the system handles it:
 
 ```bash
 # Kill one worker - verify failover
@@ -285,22 +281,13 @@ make failure-inject-cpu-spike
 make failure-inject-memory-growth
 ```
 
-## 📊 Performance
+## Performance
 
-### Expected Baseline (3 workers, local Docker)
+On a decent laptop with 3 workers, expect around 200-300 RPS with p95 latency under 200ms. Cache hit rate climbs to 60-80% after warm-up, which makes a big difference for repeated queries.
 
-- **RPS**: 200-300 requests/second
-- **p50 Latency**: 20-50ms
-- **p95 Latency**: 100-200ms
-- **p99 Latency**: 200-500ms
-- **Error Rate**: <1%
-- **Cache Hit Rate**: 60-80% (after warm-up)
+See [docs/CAPACITY_PLAN.md](docs/CAPACITY_PLAN.md) for the full capacity analysis, including how to scale beyond single-server, what bottlenecks to watch for, and why I chose certain timeout values.
 
-### Capacity Planning
-
-See [docs/CAPACITY_PLAN.md](docs/CAPACITY_PLAN.md) for detailed analysis.
-
-## 🛠️ Development
+## Development
 
 ### Project Structure
 
@@ -364,15 +351,18 @@ Key configurations:
 - `CACHE_TTL_SECONDS=3600` - Cache TTL
 - `GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS=30` - Shutdown timeout
 
-## 📖 Documentation
+## Documentation
 
-- **[RUNBOOK.md](docs/RUNBOOK.md)** - On-call guide with 6+ incident scenarios
-- **[CAPACITY_PLAN.md](docs/CAPACITY_PLAN.md)** - Resource planning and scaling
-- **[SECURITY.md](docs/SECURITY.md)** - Security considerations
-- **[TRADEOFFS.md](docs/TRADEOFFS.md)** - Design decisions and alternatives
-- **[POSTMORTEM_TEMPLATE.md](docs/POSTMORTEM_TEMPLATE.md)** - Incident postmortem template
+Written like actual engineering docs, not marketing material:
 
-## 🐧 Linux Deployment
+- **[RUNBOOK.md](docs/RUNBOOK.md)** - What to do when things break at 3am. Six incident scenarios with actual commands.
+- **[CAPACITY_PLAN.md](docs/CAPACITY_PLAN.md)** - How to figure out how many workers you need and when to scale.
+- **[SECURITY.md](docs/SECURITY.md)** - Threat model and what security controls are actually implemented.
+- **[TRADEOFFS.md](docs/TRADEOFFS.md)** - Why I chose X over Y, with honest pros/cons.
+- **[POSTMORTEM_TEMPLATE.md](docs/POSTMORTEM_TEMPLATE.md)** - Template for writing incident postmortems.
+- **[PERFORMANCE_NOTES.md](docs/PERFORMANCE_NOTES.md)** - Load testing methodology and tuning results.
+
+## Deployment
 
 ### Ubuntu 22.04 on EC2
 
@@ -408,7 +398,7 @@ See [deploy/systemd/](deploy/systemd/) for:
 - Journald integration
 - Service management
 
-## 🔍 Debugging
+## Debugging
 
 ### View Logs
 
@@ -466,74 +456,34 @@ KEYS idempotency:*
 INFO memory
 ```
 
-## 🎓 Production Engineering Demonstrations
+## What This Actually Shows
 
-This project demonstrates:
+**Linux/Unix basics**: Docker, systemd, network debugging with ss/lsof, log management with journalctl, signal handling for graceful shutdown.
 
-### Linux/Unix Skills
-- ✅ Docker containerization
-- ✅ systemd service management
-- ✅ Network diagnostics (ss, lsof, curl)
-- ✅ Log management (journalctl, structured logging)
-- ✅ Process management (signals, graceful shutdown)
-- ✅ Shell scripting for operations
+**Networking**: L7 load balancing with Nginx, connection pooling, health checks, rate limiting, understanding timeout budgets.
 
-### Networking
-- ✅ Nginx L7 load balancing
-- ✅ Health checks and failover
-- ✅ Connection pooling
-- ✅ Timeout management
-- ✅ Rate limiting
+**Observability**: Prometheus metrics (20+ custom metrics), Grafana dashboards, alert rules that actually make sense, structured JSON logging.
 
-### Observability
-- ✅ Prometheus metrics collection
-- ✅ Grafana dashboards
-- ✅ Alert rules
-- ✅ Structured logging
-- ✅ Request tracing (request IDs)
+**Reliability patterns**: Circuit breakers with half-open states, retry with exponential backoff, graceful degradation when dependencies fail, idempotency for duplicate requests.
 
-### Reliability
-- ✅ Circuit breakers
-- ✅ Retry with exponential backoff
-- ✅ Graceful degradation
-- ✅ Idempotency
-- ✅ Fallback strategies
-- ✅ Health checks
+**Capacity planning**: Load testing methodology with k6, understanding bottlenecks (spoiler: usually CPU or DB), how to figure out how many workers you need.
 
-### Capacity Planning
-- ✅ Load testing
-- ✅ Resource requirements
-- ✅ Scaling strategies
-- ✅ Bottleneck analysis
+**Operations**: Runbooks for common incidents, failure injection testing, knowing how to debug production issues at 3am.
 
-### Operational Excellence
-- ✅ Runbooks for common incidents
-- ✅ Failure injection testing
-- ✅ Postmortem templates
-- ✅ Documentation
+## License
 
-## 🤝 Contributing
+MIT License - See [LICENSE](LICENSE) file.
 
-This is a portfolio project demonstrating Production Engineering skills. For educational or professional reference only.
+## Author
 
-## 📝 License
+Built by Puneeth Kotha ([@puneethkotha](https://github.com/puneethkotha)) as a portfolio project.
 
-MIT License - See [LICENSE](LICENSE) file for details.
+If you're interviewing me and want to discuss any design decisions, I'm happy to defend them or explain what I'd change at different scales.
 
-## 👤 Author
+## Notes
 
-**Puneeth Kotha**
-- GitHub: [@puneethkotha](https://github.com/puneethkotha)
-- Project: [Falcon ML Inference Platform](https://github.com/puneethkotha/Falcon)
+This implements patterns I've seen work well in production systems—circuit breakers, retry logic, observability, operational tooling. Not everything here is novel; most of it is intentionally boring and proven.
 
-## 🙏 Acknowledgments
+The ML model is deliberately trivial (scikit-learn text sentiment) because the interesting part isn't the model, it's everything around it: how do you deploy it reliably, observe it, debug it, scale it, and keep it running when things break?
 
-This project demonstrates patterns and practices inspired by:
-- Meta Production Engineering principles
-- Site Reliability Engineering (SRE) best practices
-- Cloud Native patterns
-- Microservices reliability patterns
-
----
-
-**Built with ❤️ for Production Engineering excellence**
+Inspired by production engineering practices at companies that run services at scale (Meta, Google, etc.) and SRE principles from people who've actually been paged at 3am.
