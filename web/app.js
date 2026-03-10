@@ -54,8 +54,8 @@
   function simulateInference(text) {
     const t = text.toLowerCase();
     let pos = 0.33, neg = 0.33, neu = 0.34;
-    const posWords = ['great', 'excellent', 'amazing', 'love', 'best', 'good', 'fantastic', 'exceeded', 'excellent', 'quality'];
-    const negWords = ['terrible', 'bad', 'worst', 'hate', 'poor', 'awful', 'disappointing', 'waste', 'broken'];
+    const posWords = ['great', 'excellent', 'amazing', 'love', 'best', 'good', 'fantastic', 'exceeded', 'quality', 'wonderful', 'perfect', 'awesome', 'outstanding', 'recommend', 'happy'];
+    const negWords = ['terrible', 'bad', 'worst', 'hate', 'poor', 'awful', 'disappointing', 'waste', 'broken', 'disgusting', 'horrible', 'useless', 'garbage', 'rubbish', 'dreadful', 'pathetic'];
 
     posWords.forEach(function(w) {
       if (t.indexOf(w) !== -1) { pos += 0.15; neg -= 0.05; neu -= 0.1; }
