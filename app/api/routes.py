@@ -12,6 +12,7 @@ from starlette.responses import Response
 from app.models.schemas import (
     InferenceRequest,
     InferenceResponse,
+    BatchInferenceRequest,
     HealthResponse,
     ReadinessResponse,
     ErrorResponse,
@@ -268,6 +269,47 @@ async def infer(
                 "request_id": request_id,
             },
         )
+
+
+@router.post("/infer/batch")
+async def infer_batch(
+    request: Request,
+    body: BatchInferenceRequest,
+) -> dict:
+    """
+    Batch inference on multiple texts.
+    Returns list of inference results (simplified, no per-item cache/idempotency).
+    """
+    start_time = time.time()
+    results = []
+
+    for text in body.texts[:50]:  # cap at 50
+        try:
+            t0 = time.time()
+            prediction, confidence, probabilities = await inference_service.predict(text)
+            dur_ms = (time.time() - t0) * 1000
+            results.append({
+                "text": text[:100] + ("..." if len(text) > 100 else ""),
+                "prediction": prediction,
+                "confidence": confidence,
+                "probabilities": probabilities,
+                "processing_time_ms": dur_ms,
+                "worker_id": settings.worker_id,
+            })
+        except Exception as e:
+            results.append({
+                "text": text[:100],
+                "error": str(e),
+                "worker_id": settings.worker_id,
+            })
+
+    total_ms = (time.time() - start_time) * 1000
+    return {
+        "results": results,
+        "total_count": len(results),
+        "total_time_ms": round(total_ms, 2),
+        "worker_id": settings.worker_id,
+    }
 
 
 @router.get("/healthz", response_model=HealthResponse)

@@ -1,7 +1,26 @@
 """API request/response schemas."""
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, Field, validator
+
+
+class BatchInferenceRequest(BaseModel):
+    """Batch inference request model."""
+
+    texts: List[str] = Field(
+        ...,
+        description="List of texts to classify",
+        min_length=1,
+        max_length=100,
+    )
+
+    @validator("texts")
+    def validate_texts(cls, v: List[str]) -> List[str]:
+        """Validate texts are not empty."""
+        filtered = [t.strip() for t in v if t and t.strip()]
+        if not filtered:
+            raise ValueError("At least one non-empty text required")
+        return filtered[:50]  # cap at 50
 
 
 class InferenceRequest(BaseModel):

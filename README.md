@@ -29,6 +29,7 @@ Production ML inference platform. Nginx load balances across multiple FastAPI wo
 ### Inference API
 
 - `POST /infer` – Text sentiment classification (negative, neutral, positive)
+- `POST /infer/batch` – Batch inference on multiple texts (up to 50)
 - `X-Idempotency-Key` header for request deduplication
 - Response cache keyed by normalized input
 - Processing time, worker ID, cache hit flag in response

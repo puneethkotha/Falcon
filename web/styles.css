@@ -216,9 +216,14 @@ main {
 
 .prob-fill {
   height: 100%;
+  min-width: 0;
   border-radius: 4px;
   transition: width 0.3s ease;
 }
+
+#prob-neg { background: #f85149; }
+#prob-neu { background: #d29922; }
+#prob-pos { background: #3fb950; }
 
 .prob-value {
   font-size: 0.85rem;
@@ -257,6 +262,164 @@ main {
 
 .demo-notice i {
   margin-right: 0.5rem;
+}
+
+.history-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.history-section h4 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.history-section h4 i {
+  margin-right: 0.5rem;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.history-item {
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.hist-pred {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.hist-pred.positive { color: var(--positive); }
+.hist-pred.negative { color: var(--negative); }
+.hist-pred.neutral { color: var(--neutral); }
+
+.hist-text {
+  color: var(--text-muted);
+}
+
+.batch-section {
+  margin: 3rem 0;
+}
+
+.batch-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+#batch-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  resize: vertical;
+  margin-bottom: 1rem;
+}
+
+#batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+
+#batch-btn:hover { opacity: 0.9; }
+
+.batch-results {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.batch-loading {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.batch-item {
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.batch-item:last-child { border-bottom: none; }
+
+.batch-item .pred {
+  font-weight: 600;
+  margin-right: 0.75rem;
+  display: inline-block;
+  min-width: 70px;
+}
+
+.batch-item .pred.positive { color: var(--positive); }
+.batch-item .pred.negative { color: var(--negative); }
+.batch-item .pred.neutral { color: var(--neutral); }
+
+.samples-section {
+  margin: 3rem 0;
+}
+
+.samples-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.sample-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sample-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.sample-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sample-btn i {
+  font-size: 0.9rem;
 }
 
 .error-area {
