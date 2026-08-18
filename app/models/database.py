@@ -32,7 +32,14 @@ class InferenceLog(Base):
     # Timing
     processing_time_ms = Column(Float, nullable=True)
     inference_time_ms = Column(Float, nullable=True)
-    
+
+    # LLM token economics (added in the vLLM-serving upgrade)
+    model_id = Column(String(128), nullable=True)
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    ttft_ms = Column(Float, nullable=True)
+    generation_ms = Column(Float, nullable=True)
+
     # Error info
     error_type = Column(String(128), nullable=True)
     error_message = Column(String(512), nullable=True)
@@ -55,4 +62,42 @@ class InferenceLog(Base):
         return (
             f"<InferenceLog(id={self.id}, request_id={self.request_id}, "
             f"worker_id={self.worker_id}, success={self.success})>"
+        )
+
+
+class QualityScore(Base):
+    """Online quality-observability score for a sampled completion.
+
+    Written asynchronously off the critical path by the quality sidecar, so a
+    slow judge never adds latency to serving.
+    """
+
+    __tablename__ = "quality_scores"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_id = Column(String(64), index=True, nullable=False)
+    worker_id = Column(String(64), nullable=False, index=True)
+    path = Column(String(32), nullable=False)  # "generate" or "classify"
+
+    # Deterministic checks (free, always run)
+    check_passed = Column(Boolean, default=True, nullable=False)
+    failed_checks = Column(JSON, nullable=True)
+    refusal = Column(Boolean, default=False, nullable=False)
+    output_length = Column(Integer, nullable=True)
+
+    # LLM-as-judge (optional, budgeted, noisy estimator)
+    judge_score = Column(Float, nullable=True)
+    judge_model = Column(String(128), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("idx_quality_worker_created", "worker_id", "created_at"),
+        Index("idx_quality_refusal_created", "refusal", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<QualityScore(id={self.id}, request_id={self.request_id}, "
+            f"refusal={self.refusal}, judge_score={self.judge_score})>"
         )

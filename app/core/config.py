@@ -24,12 +24,36 @@ class Settings(BaseSettings):
     workers: int = Field(default=1)
     reload: bool = Field(default=False)
 
-    # Model
+    # Model (legacy sklearn fields retained for the /infer classify fallback tooling)
     model_path: str = Field(default="/app/models/classifier.pkl")
     model_type: str = Field(default="sklearn")
     enable_batching: bool = Field(default=True)
     batch_size: int = Field(default=32)
     batch_timeout_ms: int = Field(default=100)
+
+    # LLM serving engine (vLLM OpenAI-compatible endpoint)
+    # Points at the vLLM CPU service in docker-compose by default; switch the
+    # base URL to a scale-to-zero GPU endpoint (Modal/RunPod/HF) for the GPU path.
+    vllm_base_url: str = Field(default="http://vllm:8000/v1")
+    vllm_api_key: str = Field(default="EMPTY")  # OpenAI-compatible servers ignore the value
+    model_id: str = Field(default="Qwen/Qwen3-0.6B")  # CPU near-$0 default; Qwen3-1.7B on GPU
+    generation_timeout_seconds: int = Field(default=120)  # long generations outlast /infer's 30s budget
+    generation_connect_timeout_seconds: int = Field(default=10)
+    default_max_tokens: int = Field(default=256)
+    default_temperature: float = Field(default=0.7)
+    # Constrained classify path used by the backward-compatible /infer route
+    classify_max_tokens: int = Field(default=16)
+    classify_temperature: float = Field(default=0.0)
+
+    # Online quality observability (async, off the critical path)
+    quality_sampling_enabled: bool = Field(default=True)
+    quality_sample_rate: float = Field(default=0.1)  # 10% of completions
+    quality_queue_maxsize: int = Field(default=1000)
+    quality_judge_enabled: bool = Field(default=False)  # requires a judge budget; deterministic checks always run
+    quality_judge_model: str = Field(default="Qwen/Qwen3-1.7B")
+    quality_refusal_markers: str = Field(
+        default="i cannot,i can't,i'm sorry,i am sorry,as an ai,i am unable,i'm unable"
+    )
 
     # Redis
     redis_host: str = Field(default="redis")

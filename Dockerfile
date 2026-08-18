@@ -18,6 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY models/ ./models/
 
+# Copy database migrations (alembic) and tooling
+COPY migrations/ ./migrations/
+COPY alembic.ini ./alembic.ini
+COPY tools/ ./tools/
+
 # Create logs directory
 RUN mkdir -p /app/logs
 

@@ -127,6 +127,19 @@ class CircuitBreaker:
 
             if self.state == CircuitBreakerState.HALF_OPEN:
                 self.success_count += 1
+                # Close promptly once enough half-open probes succeed, rather than
+                # waiting for the next call's state check (faster recovery).
+                if self.success_count >= self.half_open_attempts:
+                    logger.info(
+                        "Circuit breaker closing after successful recovery",
+                        extra={"dependency": self.dependency_name},
+                    )
+                    self.state = CircuitBreakerState.CLOSED
+                    self.failure_count = 0
+                    circuit_breaker_state.labels(
+                        worker_id=settings.worker_id,
+                        dependency=self.dependency_name,
+                    ).set(self.state.value)
             elif self.state == CircuitBreakerState.CLOSED:
                 self.failure_count = 0
 

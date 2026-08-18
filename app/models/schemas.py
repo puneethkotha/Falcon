@@ -57,6 +57,49 @@ class InferenceResponse(BaseModel):
     )
 
 
+class ChatMessage(BaseModel):
+    """A single OpenAI-style chat message."""
+
+    role: str = Field(..., description="Message role: system, user, or assistant")
+    content: str = Field(..., description="Message content")
+
+
+class GenerationRequest(BaseModel):
+    """Streaming generation request (Falcon-native /generate route)."""
+
+    messages: Optional[List[ChatMessage]] = Field(
+        default=None, description="Chat messages; if omitted, 'prompt' is used"
+    )
+    prompt: Optional[str] = Field(
+        default=None, description="Convenience single-turn prompt (wrapped as a user message)"
+    )
+    max_tokens: Optional[int] = Field(default=None, ge=1, le=4096)
+    temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
+    top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    stream: bool = Field(default=True, description="Stream tokens as SSE")
+
+    @validator("prompt", always=True)
+    def validate_prompt(cls, v: Optional[str], values) -> Optional[str]:
+        if v is None and not values.get("messages"):
+            raise ValueError("Either 'messages' or 'prompt' is required")
+        return v
+
+    def as_messages(self) -> List[Dict[str, str]]:
+        if self.messages:
+            return [{"role": m.role, "content": m.content} for m in self.messages]
+        return [{"role": "user", "content": self.prompt or ""}]
+
+    def sampling_params(self) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+        if self.max_tokens is not None:
+            params["max_tokens"] = self.max_tokens
+        if self.temperature is not None:
+            params["temperature"] = self.temperature
+        if self.top_p is not None:
+            params["top_p"] = self.top_p
+        return params
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
     

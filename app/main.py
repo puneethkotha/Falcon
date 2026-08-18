@@ -15,6 +15,7 @@ from app.middleware.request_id import RequestIDMiddleware
 from app.services.redis_service import redis_service
 from app.services.database_service import database_service
 from app.services.inference_service import inference_service
+from app.services.quality_service import quality_service
 
 # Setup logging first
 setup_logging()
@@ -60,14 +61,20 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to connect to database: {e}")
         logger.warning("Continuing without database (logging will be buffered)")
     
-    # Load ML model
+    # Connect to the LLM engine (tolerant: breaker manages a cold/dead engine)
     try:
-        logger.info("Loading ML model...")
+        logger.info("Connecting to LLM engine...")
         await inference_service.load_model()
     except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        raise
-    
+        logger.error(f"Engine connect probe failed: {e}")
+        logger.warning("Continuing; the vLLM circuit breaker will manage the engine")
+
+    # Start the async quality-observability sidecar
+    try:
+        await quality_service.start()
+    except Exception as e:
+        logger.error(f"Failed to start quality sidecar: {e}")
+
     # Setup signal handlers for graceful shutdown
     def handle_shutdown_signal(signum, frame):
         """Handle shutdown signals."""
@@ -103,6 +110,12 @@ async def lifespan(app: FastAPI):
     except asyncio.TimeoutError:
         logger.warning("Graceful shutdown timeout exceeded")
     
+    # Stop the quality sidecar
+    try:
+        await quality_service.stop()
+    except Exception as e:
+        logger.error(f"Error stopping quality sidecar: {e}")
+
     # Flush any buffered logs
     try:
         flushed = await database_service.flush_log_buffer()
@@ -110,7 +123,13 @@ async def lifespan(app: FastAPI):
             logger.info(f"Flushed {flushed} buffered logs")
     except Exception as e:
         logger.error(f"Failed to flush logs: {e}")
-    
+
+    # Close the engine client
+    try:
+        await inference_service.aclose()
+    except Exception as e:
+        logger.error(f"Error closing engine client: {e}")
+
     # Disconnect from services
     try:
         await redis_service.disconnect()

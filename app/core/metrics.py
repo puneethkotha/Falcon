@@ -117,11 +117,85 @@ model_load_duration_seconds = Gauge(
     ["worker_id"],
 )
 
-model_inference_batch_size = Histogram(
-    "model_inference_batch_size",
-    "Model inference batch size",
+# NOTE: model_inference_batch_size was retired in the LLM-serving upgrade.
+# Client-side batch size is meaningless for token streaming; in-flight batch
+# depth is now read from the engine via vllm:num_requests_running.
+
+# ---------------------------------------------------------------------------
+# LLM token-serving metrics (Falcon-side, per-request timing).
+# These let the frontend show live numbers reading only Falcon's /metrics,
+# and are reconciled against the engine's own vllm:* series in Grafana.
+# ---------------------------------------------------------------------------
+
+# Time to first token: from request dispatch to first streamed chunk.
+falcon_ttft_seconds = Histogram(
+    "falcon_ttft_seconds",
+    "Time to first token in seconds (Falcon-observed, includes proxy hop)",
     ["worker_id"],
-    buckets=(1, 2, 5, 10, 20, 32, 50, 100),
+    buckets=(0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0),
+)
+
+# Inter-token latency: gap between successive streamed chunks (approximates TPOT).
+falcon_inter_token_seconds = Histogram(
+    "falcon_inter_token_seconds",
+    "Inter-token latency in seconds (gap between successive streamed chunks)",
+    ["worker_id"],
+    buckets=(0.005, 0.01, 0.02, 0.03, 0.05, 0.075, 0.1, 0.2, 0.5, 1.0),
+)
+
+# End-to-end generation wall time (dispatch to last chunk).
+falcon_generation_duration_seconds = Histogram(
+    "falcon_generation_duration_seconds",
+    "End-to-end generation duration in seconds (Falcon-observed)",
+    ["worker_id"],
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0),
+)
+
+falcon_output_tokens_total = Counter(
+    "falcon_output_tokens_total",
+    "Total output (completion) tokens streamed by Falcon",
+    ["worker_id"],
+)
+
+falcon_prompt_tokens_total = Counter(
+    "falcon_prompt_tokens_total",
+    "Total prompt tokens submitted to the engine",
+    ["worker_id"],
+)
+
+# ---------------------------------------------------------------------------
+# Online quality-observability metrics (async sampler, judge off critical path).
+# ---------------------------------------------------------------------------
+
+falcon_quality_sampled_total = Counter(
+    "falcon_quality_sampled_total",
+    "Completions sampled into the quality queue",
+    ["worker_id", "path"],
+)
+
+falcon_quality_check_failed_total = Counter(
+    "falcon_quality_check_failed_total",
+    "Deterministic quality-check failures",
+    ["worker_id", "check"],
+)
+
+falcon_refusal_total = Counter(
+    "falcon_refusal_total",
+    "Sampled completions classified as refusals",
+    ["worker_id"],
+)
+
+falcon_quality_dropped_total = Counter(
+    "falcon_quality_dropped_total",
+    "Samples dropped because the quality queue was full",
+    ["worker_id"],
+)
+
+falcon_judge_score = Histogram(
+    "falcon_judge_score",
+    "LLM-as-judge score for sampled completions (0-1)",
+    ["worker_id"],
+    buckets=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
 )
 
 # System metrics
