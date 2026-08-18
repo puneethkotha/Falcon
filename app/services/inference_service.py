@@ -307,6 +307,45 @@ class InferenceService:
             return "negative"
         return "neutral"
 
+    def _metrics_url(self) -> str:
+        base = self.base_url
+        if base.endswith("/v1"):
+            base = base[:-3]
+        return base.rstrip("/") + "/metrics"
+
+    async def serving_stats(self) -> Dict:
+        """Best-effort snapshot of engine serving stats for the demo observability pane.
+
+        Parses a few vllm:* series from the engine's /metrics so the frontend can read
+        them same-origin (no CORS) and they work for real vLLM and the mock alike.
+        """
+        if self._client is None:
+            return {}
+        try:
+            resp = await self._client.get(self._metrics_url())
+            text = resp.text
+        except Exception:
+            return {}
+
+        import re
+
+        def _v(name: str) -> Optional[float]:
+            m = re.search(rf"^{re.escape(name)}(?:\{{[^}}]*\}})?\s+([0-9eE.+-]+)", text, re.M)
+            return float(m.group(1)) if m else None
+
+        kv = _v("vllm:gpu_cache_usage_perc")
+        if kv is None:
+            kv = _v("vllm:kv_cache_usage_perc")
+        hits = _v("vllm:prefix_cache_hits_total")
+        queries = _v("vllm:prefix_cache_queries_total")
+        prefix_hit = (hits / queries) if (hits is not None and queries) else None
+        return {
+            "kv_cache_pct": round(kv * 100, 1) if kv is not None else None,
+            "running": _v("vllm:num_requests_running"),
+            "waiting": _v("vllm:num_requests_waiting"),
+            "prefix_hit_rate": round(prefix_hit, 3) if prefix_hit is not None else None,
+        }
+
     async def health_check(self) -> bool:
         """Service is healthy if the engine client exists (breaker manages the engine)."""
         return self.model_loaded

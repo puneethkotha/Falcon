@@ -1,10 +1,38 @@
 # Performance Testing & Tuning Notes
 
+## Post-upgrade note (LLM serving)
+
+The numbers in the "chassis tuning" sections below are a **pre-upgrade result**: they
+measure whole-request latency of the old sklearn TF-IDF + LogisticRegression classifier
+(sub-millisecond inference; the p95 was queuing/HTTP overhead, not model time). They are a
+chassis-tuning result, not a model result, and are retained for history.
+
+After the upgrade the governing metric is no longer whole-request p95. It is the
+token-serving frontier: **output tokens/sec vs TTFT p95 and TPOT p95**, swept from
+synchronous to saturation, with the knee and max-rate-at-SLO marked and cost per 1M
+output tokens computed at the operating point.
+
+That frontier is GPU-dependent and is **not yet measured** (no GPU in the build
+environment; vLLM's CPU backend is x86-avx-only). It must be produced with the committed
+harness on a named GPU host - do not read any number below as a token-serving figure.
+
+- Method and exact commands: `docs/frontier/README.md`
+- Harness: `benchmarks/guidellm_sweep.sh`, `benchmarks/plot_frontier.py`
+- Lever ablations (prefix caching / chunked prefill / speculative decoding):
+  `docs/SERVING_LEVERS.md`
+
+What was verified on CPU during the upgrade (see the PR evidence, not benchmarks):
+streaming SSE flows token-by-token through the worker; TTFT / inter-token latency /
+token counts are recorded; the vLLM circuit breaker opens on engine outage (502 -> 503)
+and Falcon's token metrics populate. These validate the plumbing, not throughput.
+
+---
+
 ## Overview
 
-This document tracks performance testing results and tuning applied to the Falcon ML Inference Platform.
+This document tracks performance testing results and tuning applied to the Falcon platform.
 
-**Goal**: Optimize p95 latency through systematic worker and connection tuning.
+**Goal (pre-upgrade)**: Optimize p95 latency through systematic worker and connection tuning.
 
 ---
 

@@ -539,6 +539,19 @@ async def readiness_check() -> ReadinessResponse:
     )
 
 
+@router.get("/serving/stats")
+async def serving_stats() -> dict:
+    """Engine serving snapshot (KV-cache %, running/waiting, prefix-hit) for the demo pane.
+
+    Parsed server-side from the engine's vllm:* metrics so the frontend reads it
+    same-origin. Best-effort: returns nulls if the engine is cold or unreachable.
+    """
+    stats = await inference_service.serving_stats()
+    stats["worker_id"] = settings.worker_id
+    stats["model_id"] = settings.model_id
+    return stats
+
+
 @router.get("/metrics")
 async def metrics() -> Response:
     """Prometheus metrics endpoint."""
