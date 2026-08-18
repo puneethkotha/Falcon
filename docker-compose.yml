@@ -112,6 +112,57 @@ services:
       retries: 3
       start_period: 30s
 
+  # vLLM OpenAI-compatible inference engine.
+  #
+  # Falcon's workers point VLLM_BASE_URL at this service and treat it as one more
+  # protected dependency (its own circuit breaker, retry budget, and Nginx failover).
+  #
+  # GPU path (this definition): the official vllm/vllm-openai image is CUDA/x86. It
+  # starts under the "gpu" profile so the reliability chassis still comes up on hosts
+  # without a GPU. Bring it up with:  docker compose --profile gpu up -d
+  #
+  # CPU near-$0 backstop: the official image has no CPU tag. Build vLLM's CPU image
+  # (docker build -f Dockerfile.cpu -t vllm-cpu https://github.com/vllm-project/vllm.git)
+  # or run llama.cpp's OpenAI server, and set command accordingly (Qwen/Qwen3-0.6B).
+  # On Apple Silicon (arm64) the x86 CPU backend cannot run; use Modal for the real
+  # engine and tools/mock_vllm_server.py for local plumbing tests (see docs/frontier/).
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: falcon-vllm
+    profiles: ["gpu"]
+    command:
+      - "--model"
+      - "${MODEL_ID:-Qwen/Qwen3-1.7B}"
+      - "--max-model-len"
+      - "4096"
+      - "--enable-prefix-caching"       # Phase 4: kept ON (shared classify system prompt)
+      - "--enable-chunked-prefill"      # Phase 4: kept ON (long prompts do not stall decode)
+      # Speculative decoding is intentionally OFF by default (see docs/SERVING_LEVERS.md):
+      # it helps only at low concurrency and loses throughput under batching. Enable with
+      # --speculative-config and cap it via --speculative-disable-by-batch-size ~32.
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    networks:
+      - falcon-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
   # Redis Cache
   redis:
     image: redis:7-alpine
