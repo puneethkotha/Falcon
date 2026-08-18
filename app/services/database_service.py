@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy import select, func
 
 from app.core.config import settings
-from app.models.database import Base, InferenceLog
+from app.models.database import Base, InferenceLog, QualityScore
 from app.core.metrics import (
     db_operations_total,
     db_operation_duration_seconds,
@@ -118,10 +118,15 @@ class DatabaseService:
         error_message: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         client_ip: Optional[str] = None,
+        model_id: Optional[str] = None,
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        ttft_ms: Optional[float] = None,
+        generation_ms: Optional[float] = None,
     ) -> bool:
         """
         Log inference request to database with fallback to buffer.
-        
+
         Returns True if logged successfully, False if buffered/dropped.
         """
         log_data = {
@@ -141,6 +146,11 @@ class DatabaseService:
             "error_message": error_message,
             "idempotency_key": idempotency_key,
             "client_ip": client_ip,
+            "model_id": model_id,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "ttft_ms": ttft_ms,
+            "generation_ms": generation_ms,
         }
 
         try:
@@ -171,7 +181,7 @@ class DatabaseService:
                 return False
 
             result = await self.circuit_breaker.call(
-                retry_with_backoff(
+                lambda: retry_with_backoff(
                     _log,
                     operation_name="db_log_inference",
                     exceptions=(OperationalError, SQLAlchemyError),
@@ -246,6 +256,41 @@ class DatabaseService:
         )
 
         return flushed_count
+
+    async def log_quality_score(
+        self,
+        request_id: str,
+        path: str,
+        check_passed: bool,
+        failed_checks: Optional[list] = None,
+        refusal: bool = False,
+        output_length: Optional[int] = None,
+        judge_score: Optional[float] = None,
+        judge_model: Optional[str] = None,
+    ) -> bool:
+        """Persist a quality score written by the async sidecar (best-effort)."""
+        if not self.session_factory:
+            return False
+        try:
+            async with self.get_session() as session:
+                session.add(
+                    QualityScore(
+                        request_id=request_id,
+                        worker_id=settings.worker_id,
+                        path=path,
+                        check_passed=check_passed,
+                        failed_checks=failed_checks,
+                        refusal=refusal,
+                        output_length=output_length,
+                        judge_score=judge_score,
+                        judge_model=judge_model,
+                    )
+                )
+                await session.flush()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to log quality score: {e}")
+            return False
 
     async def get_recent_stats(self, limit: int = 100) -> Dict[str, Any]:
         """Get recent inference statistics."""

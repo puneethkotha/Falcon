@@ -2,27 +2,10 @@ groups:
   - name: inference_alerts
     interval: 30s
     rules:
-      # High p95 latency
-      - alert: HighP95Latency
-        expr: histogram_quantile(0.95, sum(rate(inference_duration_seconds_bucket[5m])) by (le, worker_id)) > 1.0
-        for: 5m
-        labels:
-          severity: warning
-          component: inference
-        annotations:
-          summary: "High p95 latency on {{ $labels.worker_id }}"
-          description: "P95 latency is {{ $value }}s, above threshold of 1.0s for 5 minutes"
-
-      # Very high p95 latency
-      - alert: VeryHighP95Latency
-        expr: histogram_quantile(0.95, sum(rate(inference_duration_seconds_bucket[5m])) by (le, worker_id)) > 5.0
-        for: 2m
-        labels:
-          severity: critical
-          component: inference
-        annotations:
-          summary: "Very high p95 latency on {{ $labels.worker_id }}"
-          description: "P95 latency is {{ $value }}s, above critical threshold of 5.0s for 2 minutes"
+      # NOTE: the whole-request inference_duration_seconds p95 alerts were replaced by
+      # token-serving SLO alerts (TTFT / TPOT) in prometheus/alerts/serving_alerts.yml.
+      # inference_duration_seconds now only covers the /infer classify compatibility
+      # path, for which whole-request latency is no longer the governing signal.
 
       # High error rate
       - alert: HighErrorRate

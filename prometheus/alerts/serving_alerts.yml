@@ -1,0 +1,68 @@
+groups:
+  - name: llm_serving_alerts
+    interval: 30s
+    rules:
+      # TTFT SLO (defended target: p95 < 500ms at the operating point on the GPU path).
+      - alert: HighTTFTp95
+        expr: histogram_quantile(0.95, sum(rate(falcon_ttft_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: serving
+        annotations:
+          summary: "TTFT p95 above SLO"
+          description: "TTFT p95 is {{ $value }}s, above the 500ms SLO for 5 minutes"
+
+      - alert: VeryHighTTFTp95
+        expr: histogram_quantile(0.95, sum(rate(falcon_ttft_seconds_bucket[5m])) by (le)) > 2.0
+        for: 2m
+        labels:
+          severity: critical
+          component: serving
+        annotations:
+          summary: "TTFT p95 critically high"
+          description: "TTFT p95 is {{ $value }}s, above 2s for 2 minutes"
+
+      # TPOT / inter-token latency SLO (defended target: p95 < 50ms).
+      - alert: HighTPOTp95
+        expr: histogram_quantile(0.95, sum(rate(falcon_inter_token_seconds_bucket[5m])) by (le)) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: serving
+        annotations:
+          summary: "TPOT p95 above SLO"
+          description: "Inter-token latency p95 is {{ $value }}s, above the 50ms SLO for 5 minutes"
+
+      # KV-cache saturation (precedes queueing).
+      - alert: KVCacheSaturated
+        expr: max(vllm:gpu_cache_usage_perc) > 0.9
+        for: 2m
+        labels:
+          severity: warning
+          component: serving
+        annotations:
+          summary: "KV-cache utilization above 90%"
+          description: "KV-cache is {{ $value | humanizePercentage }} full for 2 minutes; expect queueing"
+
+      # Queue depth (requests waiting for a batch slot).
+      - alert: RequestQueueBuildup
+        expr: sum(vllm:num_requests_waiting) > 20
+        for: 3m
+        labels:
+          severity: warning
+          component: serving
+        annotations:
+          summary: "vLLM request queue building up"
+          description: "{{ $value }} requests waiting for 3 minutes; offered load may exceed the knee"
+
+      # The vLLM engine breaker is open (engine outage).
+      - alert: VLLMBreakerOpen
+        expr: max(circuit_breaker_state{dependency="vllm"}) >= 1
+        for: 1m
+        labels:
+          severity: critical
+          component: serving
+        annotations:
+          summary: "vLLM circuit breaker open on {{ $labels.worker_id }}"
+          description: "The engine breaker has been open/half-open for 1 minute"

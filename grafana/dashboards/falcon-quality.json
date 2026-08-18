@@ -1,0 +1,81 @@
+{
+  "annotations": { "list": [ { "builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard" } ] },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Online quality (200 OK is not correct) - decoupled from reliability",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Judge score (avg and trend)",
+      "description": "Mean LLM-as-judge score over sampled completions. Trend it; do not gate on a single verdict. Requires QUALITY_JUDGE_ENABLED=true.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(falcon_judge_score_sum[10m])) / clamp_min(sum(rate(falcon_judge_score_count[10m])), 1)", "legendFormat": "judge avg", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Refusal rate",
+      "description": "Refusals / sampled completions. The web-verified silent failure: a cohort spikes refusals while latency dashboards stay green.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(falcon_refusal_total[5m])) / clamp_min(sum(rate(falcon_quality_sampled_total[5m])), 1)", "legendFormat": "refusal rate", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Deterministic check-failure rate by check",
+      "description": "refusal / empty_output / truncated / label_out_of_set / confidence_out_of_range.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum by (check) (rate(falcon_quality_check_failed_total[5m]))", "legendFormat": "{{check}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Sampling throughput and drops",
+      "description": "Samples enqueued per second by path, and drops when the queue is full (backpressure, never blocks serving).",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum by (path) (rate(falcon_quality_sampled_total[5m]))", "legendFormat": "sampled {{path}}", "refId": "A" },
+        { "expr": "sum(rate(falcon_quality_dropped_total[5m]))", "legendFormat": "dropped", "refId": "B" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Reliability (should stay green while quality drops)",
+      "description": "Success rate of inference requests. This panel and the quality panels are decoupled by design.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 0.95 } ] } }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(inference_requests_total{status=\"success\"}[5m])) / clamp_min(sum(rate(inference_requests_total[5m])), 1)", "legendFormat": "success rate", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["falcon", "quality", "llm"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Falcon Quality Observability",
+  "uid": "falcon-quality",
+  "version": 1
+}

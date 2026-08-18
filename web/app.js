@@ -1,192 +1,202 @@
 (function () {
-  const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost/infer'
-    : '';
-  const HEALTH_URL = API_BASE ? 'http://localhost/healthz' : '';
+  var CFG = window.FALCON_CONFIG || {};
+  var API = CFG.apiBase || '';
 
-  const input = document.getElementById('input-text');
-  const btn = document.getElementById('analyze-btn');
-  const result = document.getElementById('result');
-  const errorEl = document.getElementById('error');
-  const historyList = document.getElementById('history-list');
+  var els = {
+    prompt: document.getElementById('prompt'),
+    run: document.getElementById('run'),
+    output: document.getElementById('output'),
+    ttft: document.getElementById('m-ttft'),
+    itl: document.getElementById('m-itl'),
+    tokens: document.getElementById('m-tokens'),
+    tps: document.getElementById('m-tps'),
+    spark: document.getElementById('spark'),
+    model: document.getElementById('model-id'),
+    pMax: document.getElementById('p-maxtokens'),
+    pTemp: document.getElementById('p-temp'),
+    engineState: document.getElementById('engine-state'),
+    cold: document.getElementById('coldstart'),
+    kvArc: document.getElementById('kv-arc'),
+    kvVal: document.getElementById('kv-val'),
+    qRun: document.getElementById('q-running'),
+    qWait: document.getElementById('q-waiting'),
+  };
 
-  function showResult(data) {
-    errorEl.classList.add('hidden');
-    result.classList.remove('hidden');
+  els.model.textContent = CFG.model || 'model';
+  els.pMax.textContent = CFG.maxTokens || 128;
+  els.pTemp.textContent = CFG.temperature != null ? CFG.temperature : 0.7;
 
-    const pred = (data.prediction || 'neutral').toLowerCase();
-    document.getElementById('prediction-badge').textContent = pred;
-    document.getElementById('prediction-badge').className = 'prediction-badge ' + pred;
+  var itlSeries = [];
 
-    const conf = ((data.confidence || 0) * 100).toFixed(1);
-    document.getElementById('confidence').textContent = conf;
+  function fmt(n) { return n == null ? '--' : Math.round(n); }
 
-    const probs = data.probabilities || { negative: 0.33, neutral: 0.34, positive: 0.33 };
-    const pNeg = ((probs.negative || 0) * 100).toFixed(0);
-    const pNeu = ((probs.neutral || 0) * 100).toFixed(0);
-    const pPos = ((probs.positive || 0) * 100).toFixed(0);
-
-    const probNeg = document.getElementById('prob-neg');
-    const probNeu = document.getElementById('prob-neu');
-    const probPos = document.getElementById('prob-pos');
-    if (probNeg) { probNeg.style.width = pNeg + '%'; probNeg.style.minWidth = pNeg > 0 ? '4px' : '0'; }
-    if (probNeu) { probNeu.style.width = pNeu + '%'; probNeu.style.minWidth = pNeu > 0 ? '4px' : '0'; }
-    if (probPos) { probPos.style.width = pPos + '%'; probPos.style.minWidth = pPos > 0 ? '4px' : '0'; }
-
-    document.getElementById('prob-neg-val').textContent = pNeg + '%';
-    document.getElementById('prob-neu-val').textContent = pNeu + '%';
-    document.getElementById('prob-pos-val').textContent = pPos + '%';
-
-    document.getElementById('latency').textContent = Math.round(data.processing_time_ms || 0);
-    document.getElementById('worker-id').textContent = data.worker_id || '-';
-
-    const cacheEl = document.getElementById('cache-indicator');
-    if (cacheEl) {
-      cacheEl.classList.toggle('hidden', !data.cache_hit);
-    }
-
-    const demoNotice = document.getElementById('demo-mode-notice');
-    if (demoNotice) {
-      demoNotice.classList.toggle('hidden', !!API_BASE);
-    }
+  function resetMetrics() {
+    els.output.innerHTML = '';
+    els.ttft.textContent = '--';
+    els.itl.textContent = '--';
+    els.tokens.textContent = '0';
+    els.tps.textContent = '--';
+    itlSeries = [];
+    drawSpark();
   }
 
-  function simulateInference(text) {
-    const t = text.toLowerCase();
-    let pos = 0.33, neg = 0.33, neu = 0.34;
-    const posWords = ['great', 'excellent', 'amazing', 'love', 'best', 'good', 'fantastic', 'exceeded', 'quality', 'wonderful', 'perfect', 'awesome', 'outstanding', 'recommend', 'happy'];
-    const negWords = ['terrible', 'bad', 'worst', 'hate', 'poor', 'awful', 'disappointing', 'waste', 'broken', 'disgusting', 'horrible', 'useless', 'garbage', 'rubbish', 'dreadful', 'pathetic'];
+  function drawSpark() {
+    var c = els.spark;
+    var w = c.clientWidth || 400, h = c.height;
+    if (c.width !== w) c.width = w;
+    var ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    if (itlSeries.length < 2) return;
+    var max = Math.max.apply(null, itlSeries) || 1;
+    ctx.beginPath();
+    ctx.strokeStyle = '#E8A33D';
+    ctx.lineWidth = 1.5;
+    for (var i = 0; i < itlSeries.length; i++) {
+      var x = (i / (itlSeries.length - 1)) * (w - 2) + 1;
+      var y = h - 2 - (itlSeries[i] / max) * (h - 4);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
 
-    posWords.forEach(function(w) {
-      if (t.indexOf(w) !== -1) { pos += 0.15; neg -= 0.05; neu -= 0.1; }
+  function parseSSE(buffer, onDelta) {
+    // Returns the unconsumed tail; calls onDelta(text, usage, done) per frame.
+    var parts = buffer.split('\n\n');
+    var tail = parts.pop();
+    for (var i = 0; i < parts.length; i++) {
+      var line = parts[i].trim();
+      if (line.indexOf('data:') !== 0) continue;
+      var data = line.replace(/^data:\s*/, '');
+      if (data === '[DONE]') { onDelta(null, null, true); continue; }
+      try {
+        var obj = JSON.parse(data);
+        var delta = ((obj.choices || [{}])[0].delta || {}).content || '';
+        onDelta(delta, obj.usage || null, false);
+      } catch (e) { /* ignore keepalives */ }
+    }
+    return tail;
+  }
+
+  async function streamReal(prompt) {
+    var t0 = performance.now();
+    var first = null, last = t0, count = 0;
+    var cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    els.output.appendChild(cursor);
+
+    var res = await fetch(API + '/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+      body: JSON.stringify({
+        prompt: prompt,
+        max_tokens: CFG.maxTokens || 128,
+        temperature: CFG.temperature != null ? CFG.temperature : 0.7,
+        stream: true,
+      }),
     });
-    negWords.forEach(function(w) {
-      if (t.indexOf(w) !== -1) { neg += 0.15; pos -= 0.05; neu -= 0.1; }
-    });
+    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
 
-    const sum = pos + neg + neu;
-    pos = pos / sum;
-    neg = neg / sum;
-    neu = neu / sum;
-
-    const pred = pos > neg && pos > neu ? 'positive' : neg > pos && neg > neu ? 'negative' : 'neutral';
-    const conf = Math.max(pos, neg, neu);
-
-    return {
-      prediction: pred,
-      confidence: conf,
-      probabilities: { negative: neg, neutral: neu, positive: pos },
-      processing_time_ms: 25 + Math.random() * 15,
-      worker_id: 'simulation',
-      cache_hit: false
-    };
-  }
-
-  function showError(msg) {
-    result.classList.add('hidden');
-    errorEl.classList.remove('hidden');
-    document.getElementById('error-msg').textContent = msg;
-  }
-
-  function setLoading(loading) {
-    btn.disabled = loading;
-    const icon = btn.querySelector('i');
-    if (icon) {
-      icon.className = loading ? 'fas fa-spinner fa-spin' : 'fas fa-play';
-    }
-    btn.innerHTML = (loading ? '<i class="fas fa-spinner fa-spin"></i> ' : '<i class="fas fa-play"></i> ') + 'Analyze';
-  }
-
-  function addToHistory(text, pred, conf) {
-    if (!historyList || !text) return;
-    const item = document.createElement('div');
-    item.className = 'history-item';
-    item.innerHTML = '<span class="hist-pred ' + pred + '">' + pred + '</span> ' +
-      '<span class="hist-text">' + escapeHtml(text.slice(0, 50)) + (text.length > 50 ? '...' : '') + '</span>';
-    historyList.insertBefore(item, historyList.firstChild);
-    if (historyList.children.length > 10) {
-      historyList.removeChild(historyList.lastChild);
-    }
-  }
-
-  function escapeHtml(s) {
-    const div = document.createElement('div');
-    div.textContent = s;
-    return div.innerHTML;
-  }
-
-  async function analyze() {
-    const text = input.value.trim();
-    if (!text) return;
-
-    setLoading(true);
-    errorEl.classList.add('hidden');
-
-    var simData;
-    try {
-      if (API_BASE) {
-        const res = await fetch(API_BASE, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          showResult(data);
-          addToHistory(text, data.prediction, data.confidence);
-          setLoading(false);
-          return;
+    var reader = res.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      buffer = parseSSE(buffer, function (delta, usage, done) {
+        if (done) return;
+        if (!delta) return;
+        var now = performance.now();
+        if (first === null) {
+          first = now - t0;
+          els.ttft.textContent = fmt(first);
+        } else {
+          var gap = now - last;
+          els.itl.textContent = fmt(gap);
+          itlSeries.push(gap);
+          drawSpark();
         }
-      }
-      simData = simulateInference(text);
-      showResult(simData);
-      addToHistory(text, simData.prediction, simData.confidence);
-    } catch (err) {
-      simData = simulateInference(text);
-      showResult(simData);
-      addToHistory(text, simData.prediction, simData.confidence);
+        last = now;
+        count += 1;
+        els.tokens.textContent = count;
+        var secs = (now - t0) / 1000;
+        if (secs > 0) els.tps.textContent = (count / secs).toFixed(1);
+        cursor.insertAdjacentText('beforebegin', delta);
+      });
+    }
+    cursor.remove();
+  }
+
+  // Simulated stream so the page never looks broken when the endpoint is cold/unreachable.
+  function streamSim(prompt) {
+    return new Promise(function (resolve) {
+      var text = ('Falcon serves this token stream from a small language model behind ' +
+        'Nginx, with the reliability chassis in the loop. This is simulated because the ' +
+        'engine is unreachable from here.').split(' ');
+      var t0 = performance.now(), first = null, last = t0, i = 0;
+      var cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      els.output.appendChild(cursor);
+      var timer = setInterval(function () {
+        var now = performance.now();
+        if (first === null) { first = now - t0; els.ttft.textContent = fmt(first); }
+        else { var gap = now - last; els.itl.textContent = fmt(gap); itlSeries.push(gap); drawSpark(); }
+        last = now;
+        cursor.insertAdjacentText('beforebegin', (i === 0 ? '' : ' ') + text[i]);
+        i += 1;
+        els.tokens.textContent = i;
+        var secs = (now - t0) / 1000; if (secs > 0) els.tps.textContent = (i / secs).toFixed(1);
+        if (i >= text.length) { clearInterval(timer); cursor.remove(); resolve(); }
+      }, 45);
+    });
+  }
+
+  async function run() {
+    var prompt = (els.prompt.value || '').trim();
+    if (!prompt) return;
+    els.run.disabled = true;
+    resetMetrics();
+    try {
+      if (API) { await streamReal(prompt); }
+      else { await streamSim(prompt); }
+    } catch (e) {
+      els.cold.classList.remove('hidden');
+      await streamSim(prompt);
     } finally {
-      setLoading(false);
+      els.run.disabled = false;
     }
   }
 
-  btn.addEventListener('click', function() { analyze(); });
-
-  var batchBtn = document.getElementById('batch-btn');
-  var batchInput = document.getElementById('batch-input');
-  var batchResult = document.getElementById('batch-result');
-  if (batchBtn && batchInput && batchResult) {
-    batchBtn.addEventListener('click', function() {
-      var lines = batchInput.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
-      if (!lines.length) return;
-      batchResult.classList.remove('hidden');
-      batchResult.innerHTML = '<p class="batch-loading"><i class="fas fa-spinner fa-spin"></i> Processing...</p>';
-      setTimeout(function() {
-        var out = [];
-        lines.slice(0, 10).forEach(function(text) {
-          var sim = simulateInference(text);
-          out.push('<div class="batch-item"><span class="pred ' + sim.prediction + '">' + sim.prediction + '</span> ' + escapeHtml(text.slice(0, 60)) + (text.length > 60 ? '...' : '') + '</div>');
-        });
-        batchResult.innerHTML = out.join('') || '<p>No valid input</p>';
-      }, 300);
-    });
-  }
-
-  document.querySelectorAll('.sample-btn').forEach(function(el) {
-    el.addEventListener('click', function() {
-      input.value = this.dataset.text || '';
-      analyze();
-    });
+  els.run.addEventListener('click', run);
+  els.prompt.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run();
   });
 
-  var statusEl = document.getElementById('api-status');
-  if (statusEl && HEALTH_URL) {
-    fetch(HEALTH_URL).then(function(r) {
-      statusEl.textContent = r.ok ? 'Online' : 'Unknown';
-      statusEl.className = 'status-badge ' + (r.ok ? 'online' : '');
-    }).catch(function() {
-      statusEl.textContent = 'Offline';
-      statusEl.className = 'status-badge offline';
-    });
+  // Observability pane: poll engine serving stats (same-origin via Falcon).
+  function setEngine(state, cls) {
+    els.engineState.textContent = state;
+    els.engineState.className = 'pill ' + cls;
   }
+
+  async function pollStats() {
+    if (!API) { setEngine('demo', 'pill-muted'); return; }
+    try {
+      var r = await fetch(API + '/serving/stats');
+      if (!r.ok) throw new Error();
+      var s = await r.json();
+      setEngine('live', 'pill-live');
+      if (s.kv_cache_pct != null) {
+        els.kvVal.textContent = s.kv_cache_pct;
+        var off = 157 - (Math.min(100, s.kv_cache_pct) / 100) * 157;
+        els.kvArc.setAttribute('stroke-dashoffset', off);
+      }
+      els.qRun.textContent = s.running != null ? s.running : '--';
+      els.qWait.textContent = s.waiting != null ? s.waiting : '--';
+    } catch (e) {
+      setEngine('offline', 'pill-off');
+    }
+  }
+  pollStats();
+  setInterval(pollStats, CFG.statsIntervalMs || 2000);
+  window.addEventListener('resize', drawSpark);
 })();

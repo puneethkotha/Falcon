@@ -1,0 +1,102 @@
+{
+  "annotations": { "list": [ { "builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard" } ] },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "row",
+      "title": "LLM token serving (Falcon-observed and vLLM engine)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "TTFT p50 / p95 (Falcon vs engine)",
+      "description": "Falcon-observed TTFT includes the proxy hop; engine TTFT is the floor. They should agree within a small constant.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(falcon_ttft_seconds_bucket[5m])) by (le))", "legendFormat": "falcon p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(falcon_ttft_seconds_bucket[5m])) by (le))", "legendFormat": "falcon p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))", "legendFormat": "engine p95", "refId": "C" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "TPOT / inter-token latency p50 / p95",
+      "description": "Falcon inter-token gap approximates TPOT. Engine reports vllm:time_per_output_token_seconds.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(falcon_inter_token_seconds_bucket[5m])) by (le))", "legendFormat": "falcon ITL p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(falcon_inter_token_seconds_bucket[5m])) by (le))", "legendFormat": "falcon ITL p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.95, sum(rate(vllm:time_per_output_token_seconds_bucket[5m])) by (le))", "legendFormat": "engine TPOT p95", "refId": "C" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Output tokens / sec (system)",
+      "description": "rate of generation tokens. Engine counter is authoritative; Falcon counter is a cross-check.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(vllm:generation_tokens_total[1m]))", "legendFormat": "engine tok/s", "refId": "A" },
+        { "expr": "sum(rate(falcon_output_tokens_total[1m]))", "legendFormat": "falcon tok/s", "refId": "B" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "In-flight batch: running vs waiting",
+      "description": "Queue depth. Waiting rising while running is flat signals saturation.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(vllm:num_requests_running)", "legendFormat": "running", "refId": "A" },
+        { "expr": "sum(vllm:num_requests_waiting)", "legendFormat": "waiting", "refId": "B" }
+      ]
+    },
+    {
+      "type": "gauge",
+      "title": "KV-cache utilization",
+      "description": "vllm:gpu_cache_usage_perc (0-1). Onset of queueing correlates with this approaching 1.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.75 }, { "color": "red", "value": 0.9 } ] } }, "overrides": [] },
+      "targets": [ { "expr": "max(vllm:gpu_cache_usage_perc)", "legendFormat": "KV %", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Prefix-cache hit rate",
+      "description": "hits / queries. Rises when a shared system prompt is reused (classify path).",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [ { "expr": "sum(rate(vllm:prefix_cache_hits_total[5m])) / clamp_min(sum(rate(vllm:prefix_cache_queries_total[5m])), 1)", "legendFormat": "prefix hit rate", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "vLLM breaker state",
+      "description": "0 closed, 1 open, 2 half-open. The engine is guarded like Redis and Postgres.",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "short", "mappings": [ { "type": "value", "options": { "0": { "text": "CLOSED", "color": "green" }, "1": { "text": "OPEN", "color": "red" }, "2": { "text": "HALF_OPEN", "color": "yellow" } } } ] }, "overrides": [] },
+      "targets": [ { "expr": "max(circuit_breaker_state{dependency=\"vllm\"})", "legendFormat": "vllm", "refId": "A" } ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["falcon", "serving", "llm"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Falcon LLM Serving",
+  "uid": "falcon-serving",
+  "version": 1
+}

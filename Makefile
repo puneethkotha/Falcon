@@ -1,7 +1,8 @@
 .PHONY: help install build up down restart logs clean test lint format train-model load-test \
-        failure-inject-kill-worker failure-inject-redis-down failure-inject-postgres-slow \
-        failure-inject-cpu-spike failure-inject-memory-growth check-health check-metrics \
-        check-grafana db-migrate db-shell redis-cli deploy-ubuntu
+        load-test-streaming frontier mock-engine \
+        failure-inject-kill-worker failure-inject-kill-vllm failure-inject-redis-down \
+        failure-inject-postgres-slow failure-inject-cpu-spike failure-inject-memory-growth \
+        check-health check-metrics check-grafana db-migrate db-shell redis-cli deploy-ubuntu
 
 # Variables
 DOCKER_COMPOSE := docker compose
@@ -82,6 +83,15 @@ load-test-spike: ## Run spike load test
 load-test-soak: ## Run soak test (10 min)
 	k6 run tests/load/soak.js
 
+load-test-streaming: ## Run streaming TTFT load test (SSE)
+	k6 run tests/load/streaming.js
+
+frontier: ## Run the throughput-vs-latency frontier sweep (GPU host; needs guidellm)
+	./benchmarks/guidellm_sweep.sh
+
+mock-engine: ## Run the local OpenAI-compatible test double (no GPU; dev/CI only)
+	python -m uvicorn tools.mock_vllm_server:app --host 0.0.0.0 --port 8000
+
 load-test-all: ## Run all load tests
 	@echo "Running all load tests..."
 	@make load-test-baseline
@@ -94,6 +104,9 @@ load-test-all: ## Run all load tests
 
 failure-inject-kill-worker: ## Kill one worker and observe failover
 	./scripts/kill_worker.sh
+
+failure-inject-kill-vllm: ## Kill the vLLM engine and observe the breaker open/recover
+	./scripts/kill_vllm.sh
 
 failure-inject-redis-down: ## Stop Redis and observe fallback
 	./scripts/redis_down.sh

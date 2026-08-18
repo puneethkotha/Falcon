@@ -80,7 +80,7 @@ class RedisService:
                 return None
 
             result = await self.circuit_breaker.call(
-                retry_with_backoff(
+                lambda: retry_with_backoff(
                     _get,
                     operation_name="redis_get_cache",
                     exceptions=(ConnectionError, TimeoutError),
@@ -136,7 +136,7 @@ class RedisService:
                 return False
 
             result = await self.circuit_breaker.call(
-                retry_with_backoff(
+                lambda: retry_with_backoff(
                     _set,
                     operation_name="redis_set_cache",
                     exceptions=(ConnectionError, TimeoutError),
@@ -179,7 +179,7 @@ class RedisService:
                 return None
 
             result = await self.circuit_breaker.call(
-                retry_with_backoff(
+                lambda: retry_with_backoff(
                     _get,
                     operation_name="redis_check_idempotency",
                     exceptions=(ConnectionError, TimeoutError),
@@ -230,7 +230,7 @@ class RedisService:
                 return False
 
             result = await self.circuit_breaker.call(
-                retry_with_backoff(
+                lambda: retry_with_backoff(
                     _set,
                     operation_name="redis_store_idempotency",
                     exceptions=(ConnectionError, TimeoutError),

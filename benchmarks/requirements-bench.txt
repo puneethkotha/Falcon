@@ -1,0 +1,4 @@
+# Benchmarking-only dependencies (kept out of the runtime image).
+# Install on the benchmark/GPU host:  pip install -r benchmarks/requirements-bench.txt
+guidellm>=0.2.0
+matplotlib>=3.8
