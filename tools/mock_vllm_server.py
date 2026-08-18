@@ -54,6 +54,9 @@ vllm:generation_tokens_total{model_name="Qwen/Qwen3-0.6B"} 12000.0
 def _tokens_for(messages: List[dict]) -> List[str]:
     system = " ".join(m.get("content", "") for m in messages if m.get("role") == "system").lower()
     user = " ".join(m.get("content", "") for m in messages if m.get("role") == "user")
+    # Degraded-model simulation for the quality-decoupling demo (see docs/QUALITY_OBSERVABILITY.md).
+    if "TRIGGER_REFUSAL" in user:
+        return "I cannot help with that request.".split()
     if "sentiment classifier" in system:
         text = user.lower()
         pos = any(w in text for w in ("great", "excellent", "amazing", "love", "best", "good", "fantastic", "outstanding", "exceeded", "recommend"))

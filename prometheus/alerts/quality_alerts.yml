@@ -1,0 +1,40 @@
+groups:
+  - name: quality_alerts
+    interval: 30s
+    rules:
+      # Refusal spike: sustained rise in refusals among sampled completions, even
+      # while latency and success rate stay green (the decoupled failure mode).
+      - alert: RefusalRateSpike
+        expr: |
+          sum(rate(falcon_refusal_total[10m]))
+            / clamp_min(sum(rate(falcon_quality_sampled_total[10m])), 1) > 0.10
+        for: 10m
+        labels:
+          severity: warning
+          component: quality
+        annotations:
+          summary: "Refusal rate above 10%"
+          description: "Refusals are {{ $value | humanizePercentage }} of sampled completions for 10 minutes; reliability may still be green"
+
+      # Judge-score drop (only meaningful when QUALITY_JUDGE_ENABLED=true).
+      - alert: JudgeScoreDrop
+        expr: |
+          (sum(rate(falcon_judge_score_sum[15m])) / clamp_min(sum(rate(falcon_judge_score_count[15m])), 1)) < 0.6
+        for: 15m
+        labels:
+          severity: warning
+          component: quality
+        annotations:
+          summary: "Judge score below 0.6"
+          description: "Mean judge score is {{ $value }} over 15 minutes; investigate a possible quality regression"
+
+      # Deterministic checks failing at an elevated rate.
+      - alert: HighCheckFailureRate
+        expr: sum(rate(falcon_quality_check_failed_total[10m])) / clamp_min(sum(rate(falcon_quality_sampled_total[10m])), 1) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+          component: quality
+        annotations:
+          summary: "Deterministic quality checks failing"
+          description: "Check-failure rate is {{ $value | humanizePercentage }} of sampled completions for 10 minutes"
